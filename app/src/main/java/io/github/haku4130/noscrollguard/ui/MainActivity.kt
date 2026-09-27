@@ -1,5 +1,6 @@
 package io.github.haku4130.noscrollguard.ui
 
+import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -19,6 +20,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         GuardService.start(this)
+
+        // Off by default since Android 13. Declaring it in the manifest is not enough, and
+        // without it every warning the guard raises goes nowhere.
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
+        }
 
         findViewById<Button>(R.id.shareButton).setOnClickListener {
             val text = GuardApp.eventLog(this).asText()

@@ -12,4 +12,8 @@
     <string name="overlay_text">Its "Display over other apps" permission was revoked, so it detects scrolling but cannot show the blocking screen. Tap to restore it.</string>
     <string name="overlay_back_title">Overlay permission restored</string>
     <string name="overlay_back_text">Reopen NoScroll so it picks the permission up — apps only check it when they start. Tap to open it.</string>
+    <string name="reopen_title">Open NoScroll to wake it up</string>
+    <string name="reopen_text">Its permission was restored, but it does nothing until opened, and the guard could not open it by itself. Tap to open NoScroll.</string>
+    <string name="guard_overlay_title">NoScroll Guard cannot wake NoScroll up</string>
+    <string name="guard_overlay_text">The guard\'s own "Display over other apps" permission was revoked. Repairs still work, but NoScroll stays inert after each one. Tap to restore it.</string>
 </resources>

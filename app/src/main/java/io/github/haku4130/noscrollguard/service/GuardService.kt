@@ -16,10 +16,13 @@ import io.github.haku4130.noscrollguard.GuardApp
 import io.github.haku4130.noscrollguard.evidence.EvidenceCollector
 import io.github.haku4130.noscrollguard.repair.AccessibilityRepairer
 import io.github.haku4130.noscrollguard.repair.RepairResult
+import io.github.haku4130.noscrollguard.restart.ReopenAction
+import io.github.haku4130.noscrollguard.restart.decideReopen
 import io.github.haku4130.noscrollguard.settings.AndroidSecureSettings
 import io.github.haku4130.noscrollguard.settings.SecureKeys
 import io.github.haku4130.noscrollguard.state.AccessibilityStateReader
 import io.github.haku4130.noscrollguard.state.OverlayPermissionProbe
+import io.github.haku4130.noscrollguard.state.PermissionWatch
 import io.github.haku4130.noscrollguard.work.HealthWorker
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -115,6 +118,7 @@ class GuardService : Service() {
             if (System.currentTimeMillis() - settledAt.get() < QUIET_AFTER_REPAIR_MS) return
 
             checkOverlayPermission(context, source)
+            checkOwnPermissions(context, source)
 
             val settings = AndroidSecureSettings(context.contentResolver)
             val reader = AccessibilityStateReader(settings)
@@ -171,29 +175,66 @@ class GuardService : Service() {
          * on screen. We can only detect and tell the user — restoring it needs a
          * signature-level permission.
          */
-        private var overlayWasRevoked = false
+        private val overlayWatch = PermissionWatch()
 
         private fun checkOverlayPermission(context: Context, source: String) {
-            val allowed = OverlayPermissionProbe.isAllowed(context) ?: return
-            if (!allowed) {
-                if (!overlayWasRevoked) {
-                    overlayWasRevoked = true
+            when (overlayWatch.update(OverlayPermissionProbe.isAllowed(context))) {
+                PermissionWatch.Change.REVOKED -> {
                     GuardApp.eventLog(context).append(
                         System.currentTimeMillis(),
                         "[$source] overlay permission revoked — the app cannot show its blocking screen"
                     )
                     GuardNotifications.notifyOverlayRevoked(context)
                 }
-            } else if (overlayWasRevoked) {
-                overlayWasRevoked = false
-                GuardApp.eventLog(context).append(
+                PermissionWatch.Change.RESTORED -> {
+                    GuardApp.eventLog(context).append(
+                        System.currentTimeMillis(),
+                        "[$source] overlay permission is back — the app must be reopened to pick it up"
+                    )
+                    // Apps read this permission when they start. Restoring it under a running
+                    // process changes nothing until that process restarts, which cost an
+                    // afternoon to discover.
+                    GuardNotifications.notifyOverlayRestored(context)
+                }
+                null -> Unit
+            }
+        }
+
+        /**
+         * The guard's own permissions go missing too, and each one fails silently: without
+         * SYSTEM_ALERT_WINDOW every reopen is dropped, without POST_NOTIFICATIONS every
+         * warning. Both were found revoked on a device whose journal looked healthy.
+         */
+        private val ownOverlayWatch = PermissionWatch()
+        private val notificationsWatch = PermissionWatch()
+
+        private fun checkOwnPermissions(context: Context, source: String) {
+            val log = GuardApp.eventLog(context)
+            when (ownOverlayWatch.update(Settings.canDrawOverlays(context))) {
+                PermissionWatch.Change.REVOKED -> {
+                    log.append(
+                        System.currentTimeMillis(),
+                        "[$source] guard's own overlay permission revoked — it cannot reopen the app after a repair"
+                    )
+                    GuardNotifications.notifyGuardOverlayRevoked(context)
+                }
+                PermissionWatch.Change.RESTORED -> log.append(
                     System.currentTimeMillis(),
-                    "[$source] overlay permission is back — the app must be reopened to pick it up"
+                    "[$source] guard's own overlay permission is back"
                 )
-                // Apps read this permission when they start. Restoring it under a running
-                // process changes nothing until that process restarts, which cost an
-                // afternoon to discover.
-                GuardNotifications.notifyOverlayRestored(context)
+                null -> Unit
+            }
+            // Nothing to notify with, so the journal is the only place this can show up.
+            when (notificationsWatch.update(GuardNotifications.canNotify(context))) {
+                PermissionWatch.Change.REVOKED -> log.append(
+                    System.currentTimeMillis(),
+                    "[$source] notifications are off — warnings will not reach the user"
+                )
+                PermissionWatch.Change.RESTORED -> log.append(
+                    System.currentTimeMillis(),
+                    "[$source] notifications are back on"
+                )
+                null -> Unit
             }
         }
 
@@ -201,19 +242,34 @@ class GuardService : Service() {
          * Opens the guarded app once, if a repair has left it needing a restart.
          *
          * Needs SYSTEM_ALERT_WINDOW on this app, which is what exempts it from the
-         * background-activity-start restriction. Without that the launch is silently
-         * dropped, so the flag is only cleared once the launch actually goes out.
+         * background-activity-start restriction. Without it the launch is silently
+         * dropped — startActivity does not throw — so the permission is checked first
+         * and the job handed to the user instead.
          */
         private fun reopenGuardedAppIfNeeded(context: Context) {
             val flag = GuardApp.restartFlag(context)
-            if (!flag.isNeeded()) return
+            val action = decideReopen(flag.isNeeded(), Settings.canDrawOverlays(context))
+            if (action == ReopenAction.NOTHING) return
+
+            val waited = flag.pendingForMs() / 1000
+            if (action == ReopenAction.ASK_USER) {
+                // One notification per repair: it stays until tapped, so keeping the flag
+                // would only repeat it on every unlock.
+                flag.clear()
+                GuardApp.eventLog(context).append(
+                    System.currentTimeMillis(),
+                    "[unlock] could not reopen ${Constants.NOSCROLL_PACKAGE}: guard's own overlay " +
+                        "permission is revoked — asked the user to open it (waited ${waited}s)"
+                )
+                GuardNotifications.notifyReopenNeeded(context)
+                return
+            }
 
             val launch = context.packageManager
                 .getLaunchIntentForPackage(Constants.NOSCROLL_PACKAGE)
                 ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 ?: return
 
-            val waited = flag.pendingForMs() / 1000
             try {
                 context.startActivity(launch)
                 flag.clear()
@@ -226,7 +282,7 @@ class GuardService : Service() {
                     System.currentTimeMillis(),
                     "[unlock] could not reopen the app: ${e.javaClass.simpleName} — open it by hand"
                 )
-                GuardNotifications.notifyOverlayRestored(context)
+                GuardNotifications.notifyReopenNeeded(context)
             }
         }
     }

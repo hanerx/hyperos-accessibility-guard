@@ -54,7 +54,21 @@ done
 echo "=== 4. Background activity start ==="
 # Not for drawing overlays: this app-op is what lets the guard reopen the guarded app
 # after a repair. Without it the launch is silently dropped.
-adb shell appops set $PKG SYSTEM_ALERT_WINDOW allow && echo "  SYSTEM_ALERT_WINDOW allowed"
+#
+# HyperOS resets this app-op to its default a second or so after every install or
+# update (com.miui.securitycenter handles the install and applies its policy). Setting
+# it right after `adb install` loses that race silently, so wait, set, and check it held.
+sleep 5
+adb shell appops set $PKG SYSTEM_ALERT_WINDOW allow
+sleep 3
+if adb shell cmd appops get $PKG SYSTEM_ALERT_WINDOW | grep -q "allow"; then
+  echo "  SYSTEM_ALERT_WINDOW allowed"
+else
+  echo "  WARNING: SYSTEM_ALERT_WINDOW was reset — run: adb shell appops set $PKG SYSTEM_ALERT_WINDOW allow"
+fi
+
+# Off by default since Android 13, and without it every warning the guard raises is dropped.
+adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS && echo "  POST_NOTIFICATIONS granted"
 
 echo "=== 5. Battery whitelist ==="
 adb shell dumpsys deviceidle whitelist +$PKG
@@ -65,7 +79,8 @@ adb shell am start -n $PKG/.ui.MainActivity > /dev/null
 sleep 4
 
 echo "=== 7. Verify ==="
-adb shell dumpsys package $PKG 2>/dev/null | grep -E "WRITE_SECURE_SETTINGS: granted|PACKAGE_USAGE_STATS: granted"
+adb shell dumpsys package $PKG 2>/dev/null | grep -E "WRITE_SECURE_SETTINGS: granted|PACKAGE_USAGE_STATS: granted|POST_NOTIFICATIONS: granted"
+adb shell cmd appops get $PKG SYSTEM_ALERT_WINDOW
 if adb shell pidof $PKG > /dev/null; then echo "  guard is running"; else echo "  WARNING: process did not come up"; fi
 
 echo

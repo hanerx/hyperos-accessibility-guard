@@ -155,6 +155,24 @@ flag — `install.sh` does it for you:
 | `PACKAGE_USAGE_STATS` | Recording which app was on screen when a reset happened |
 | `SYSTEM_ALERT_WINDOW` | Not for drawing — this is the app-op that permits starting the guarded app from the background |
 
+`POST_NOTIFICATIONS` is granted too. It is an ordinary runtime permission, but it
+is off by default since Android 13, and without it every warning the guard raises
+goes nowhere.
+
+**HyperOS resets `SYSTEM_ALERT_WINDOW` on every install and update.** A second or
+so after the package is replaced, `com.miui.securitycenter` puts the app-op back
+to `ignore` — overwriting anything set before it. Without it the guard can still
+repair, but its attempts to reopen the guarded app are silently dropped. So after
+updating the guard by hand, set it again (or re-run `install.sh`, which waits for
+the reset before setting it):
+
+```bash
+adb shell appops set io.github.haku4130.noscrollguard SYSTEM_ALERT_WINDOW allow
+```
+
+The guard watches this permission on itself and says so in the journal and a
+notification when it goes missing.
+
 One thing is deliberately *not* on that list: `MANAGE_APP_OPS_MODES`, which
 would let the app restore the overlay permission itself. It is signature-only,
 with no `development` flag, so no amount of ADB will grant it. Hence detection
@@ -183,8 +201,8 @@ command-line tools — see [Build](#build):
 ./install.sh
 ```
 
-Either way the script installs the APK, grants five permissions, adds the app
-to the battery whitelist and starts it.
+Either way the script installs the APK, grants the permissions above, adds the
+app to the battery whitelist and starts it.
 
 One step remains manual, because it cannot be granted over ADB:
 **Security → Permissions → Autostart → enable NoScroll Guard.**
@@ -236,6 +254,25 @@ that field will name the real culprit.
 
 If `dumpsys` is blocked on your device, the field reads
 `could not determine` and everything else still works.
+
+### "Review app with full access to your device"
+
+After a reset you may get this notification from **Permission controller**,
+naming the guarded app. It is a consequence, not a cause — it arrives *after*
+the service has already gone down, and it does not switch anything off.
+
+Android's PermissionController keeps a list of accessibility services it has
+already warned about. Whenever a service drops out of the enabled set, it is
+removed from that list (`SafetyCenterAccessibilityListener` →
+`updateServiceAsNotified`), and a daily job warns about every enabled service
+that is not on it. So each reset followed by a repair looks to the system like a
+freshly enabled service, and the warning comes back within a day.
+
+On the device it was observed on, the order was: service down at 08:02, repaired
+at 08:02, warning posted at 09:19, both seen together at the first unlock at
+10:22 — which is why it looks like the warning broke the app. Only **Remove
+access** in the security settings disables the service; the notification itself
+is harmless.
 
 ## The screen
 

@@ -19,6 +19,8 @@ object GuardNotifications {
     const val ID_ONGOING = 1
     const val ID_EVENT = 2
     const val ID_OVERLAY = 3
+    const val ID_REOPEN = 4
+    const val ID_GUARD_OVERLAY = 5
 
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -79,24 +81,67 @@ object GuardNotifications {
      * running process keeps believing it may not draw until it restarts.
      */
     fun notifyOverlayRestored(context: Context) {
-        val launch = context.packageManager
-            .getLaunchIntentForPackage(Constants.NOSCROLL_PACKAGE)
-            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-        val pending = launch?.let {
-            PendingIntent.getActivity(
-                context, 1, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-        }
-
         val n = NotificationCompat.Builder(context, CHANNEL_EVENTS)
             .setContentTitle(context.getString(R.string.overlay_back_title))
             .setContentText(context.getString(R.string.overlay_back_text))
             .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.overlay_back_text)))
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .apply { pending?.let { setContentIntent(it) } }
+            .apply { openGuardedApp(context, 1)?.let { setContentIntent(it) } }
             .setAutoCancel(true)
             .build()
         context.getSystemService(NotificationManager::class.java).notify(ID_OVERLAY, n)
     }
+
+    /**
+     * A repair left the app inert and the guard could not open it. A tap on a
+     * notification is a foreground start, so this works where the guard's own launch
+     * would be dropped.
+     */
+    fun notifyReopenNeeded(context: Context) {
+        val n = NotificationCompat.Builder(context, CHANNEL_EVENTS)
+            .setContentTitle(context.getString(R.string.reopen_title))
+            .setContentText(context.getString(R.string.reopen_text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.reopen_text)))
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .apply { openGuardedApp(context, 2)?.let { setContentIntent(it) } }
+            .setAutoCancel(true)
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(ID_REOPEN, n)
+    }
+
+    /** Without its own overlay permission the guard can repair, but never revive. */
+    fun notifyGuardOverlayRevoked(context: Context) {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.parse("package:${context.packageName}")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+        val pending = PendingIntent.getActivity(
+            context, 3, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val n = NotificationCompat.Builder(context, CHANNEL_EVENTS)
+            .setContentTitle(context.getString(R.string.guard_overlay_title))
+            .setContentText(context.getString(R.string.guard_overlay_text))
+            .setStyle(NotificationCompat.BigTextStyle().bigText(context.getString(R.string.guard_overlay_text)))
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        context.getSystemService(NotificationManager::class.java).notify(ID_GUARD_OVERLAY, n)
+    }
+
+    fun canNotify(context: Context): Boolean =
+        context.getSystemService(NotificationManager::class.java).areNotificationsEnabled()
+
+    private fun openGuardedApp(context: Context, requestCode: Int): PendingIntent? =
+        context.packageManager
+            .getLaunchIntentForPackage(Constants.NOSCROLL_PACKAGE)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?.let {
+                PendingIntent.getActivity(
+                    context, requestCode, it,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            }
 }
