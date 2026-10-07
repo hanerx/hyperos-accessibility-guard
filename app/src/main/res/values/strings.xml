@@ -16,5 +16,5 @@ adb shell pm grant io.github.haku4130.noscrollguard android.permission.WRITE_SEC
     <string name="reopen_title">Open Projectivy to wake it up</string>
     <string name="reopen_text">Its accessibility permission was restored, but Projectivy may need to be reopened. Tap to open Projectivy.</string>
     <string name="guard_overlay_title">Projectivy Guard cannot wake Projectivy up</string>
-    <string name="guard_overlay_text">The guard's own Display over other apps permission was revoked. Accessibility repairs still work, but automatic reopening may fail. Tap to restore it.</string>
+    <string name="guard_overlay_text">The guard\'s own Display over other apps permission was revoked. Accessibility repairs still work, but automatic reopening may fail. Tap to restore it.</string>
 </resources>
