@@ -24,6 +24,7 @@ import io.github.haku4130.noscrollguard.state.AccessibilityStateReader
 import io.github.haku4130.noscrollguard.state.OverlayPermissionProbe
 import io.github.haku4130.noscrollguard.state.PermissionWatch
 import io.github.haku4130.noscrollguard.work.HealthWorker
+import io.github.haku4130.noscrollguard.xiaomi.XiaomiStartupBridge
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,6 +42,8 @@ class GuardService : Service() {
         GuardNotifications.ensureChannels(this)
         startForeground(GuardNotifications.ID_ONGOING, GuardNotifications.ongoing(this))
         HealthWorker.schedule(this)
+        GuardApp.eventLog(this).append(System.currentTimeMillis(), "[service] GuardService created")
+        thread { XiaomiStartupBridge.installAndLog(this) }
 
         observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
