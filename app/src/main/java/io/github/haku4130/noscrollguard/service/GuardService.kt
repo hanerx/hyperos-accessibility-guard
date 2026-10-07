@@ -58,6 +58,7 @@ class GuardService : Service() {
         // picks the phone up — that turns a 15-minute worst case into a few seconds.
         wakeReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
+                GuardApp.eventLog(context).append(System.currentTimeMillis(), "[receiver] " + (intent.action ?: "null"))
                 val unlocked = intent.action == Intent.ACTION_USER_PRESENT
                 thread {
                     checkAndRepair(context, if (unlocked) "unlock" else "screen on")
@@ -72,7 +73,10 @@ class GuardService : Service() {
             wakeReceiver,
             IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_USER_PRESENT)
+                addAction(Intent.ACTION_DREAMING_STARTED)
+                addAction(Intent.ACTION_DREAMING_STOPPED)
             }
         )
 
