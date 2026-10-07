@@ -24,6 +24,7 @@ import io.github.haku4130.noscrollguard.state.AccessibilityStateReader
 import io.github.haku4130.noscrollguard.state.OverlayPermissionProbe
 import io.github.haku4130.noscrollguard.state.PermissionWatch
 import io.github.haku4130.noscrollguard.work.HealthWorker
+import io.github.haku4130.noscrollguard.xiaomi.XiaomiStartupBridge
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,6 +42,8 @@ class GuardService : Service() {
         GuardNotifications.ensureChannels(this)
         startForeground(GuardNotifications.ID_ONGOING, GuardNotifications.ongoing(this))
         HealthWorker.schedule(this)
+        GuardApp.eventLog(this).append(System.currentTimeMillis(), "[service] GuardService created")
+        thread { XiaomiStartupBridge.installAndLog(this) }
 
         observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) {
@@ -58,13 +61,14 @@ class GuardService : Service() {
         // picks the phone up — that turns a 15-minute worst case into a few seconds.
         wakeReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
+                GuardApp.eventLog(context).append(System.currentTimeMillis(), "[receiver] " + (intent.action ?: "null"))
                 val unlocked = intent.action == Intent.ACTION_USER_PRESENT
                 thread {
                     checkAndRepair(context, if (unlocked) "unlock" else "screen on")
-                    // Reopening the app is what actually revives it, and an unlock is the
-                    // one moment when putting something on screen costs the user nothing:
-                    // they are already looking at it.
-                    if (unlocked) reopenGuardedAppIfNeeded(context)
+                    // Android TV may never emit USER_PRESENT after waking. SCREEN_ON is the
+                    // important event here: repair first, then immediately return to Projectivy.
+                    // The restart flag is deliberately kept while the panel is asleep.
+                    reopenGuardedAppIfNeeded(context)
                 }
             }
         }
@@ -72,7 +76,10 @@ class GuardService : Service() {
             wakeReceiver,
             IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_USER_PRESENT)
+                addAction(Intent.ACTION_DREAMING_STARTED)
+                addAction(Intent.ACTION_DREAMING_STOPPED)
             }
         )
 
@@ -161,7 +168,9 @@ class GuardService : Service() {
             log.append(System.currentTimeMillis(), "[$source] $message")
             GuardNotifications.notifyRepair(context, message)
 
-            // The settings are right again, but the app stays inert until reopened.
+            // Do not launch while the TV panel is still asleep. startActivity() can report
+            // success in that state even though nothing becomes visible, which would consume
+            // the restart flag. Keep it pending; SCREEN_ON will reopen Projectivy immediately.
             if (result is RepairResult.Success) GuardApp.restartFlag(context).markNeeded()
             } finally {
                 settledAt.set(System.currentTimeMillis())

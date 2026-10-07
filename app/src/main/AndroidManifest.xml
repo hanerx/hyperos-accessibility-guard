@@ -10,8 +10,6 @@
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.GET_APP_OPS_STATS"
         tools:ignore="ProtectedPermissions" />
-    <!-- Not for drawing: this is what exempts the guard from the background-activity-start
-         restriction, so it can reopen the guarded app after a repair. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
@@ -31,6 +29,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
@@ -40,7 +39,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Restores the NoScroll accessibility service" />
+                android:value="Restores the Projectivy Launcher accessibility service after HyperOS disables or crashes it" />
         </service>
 
         <receiver
