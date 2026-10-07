@@ -1,19 +1,20 @@
 <resources>
-    <string name="app_name">NoScroll Guard</string>
-    <string name="ongoing_title">NoScroll Guard is watching</string>
-    <string name="repair_title">NoScroll permission was reset</string>
+    <string name="app_name">Projectivy Accessibility Guard</string>
+    <string name="ongoing_title">Projectivy Guard is watching</string>
+    <string name="repair_title">Projectivy accessibility was reset</string>
     <string name="share_log">Share log</string>
     <string name="pause">Pause for 30 minutes</string>
     <string name="resume">Resume guarding</string>
-    <string name="status_ok">NoScroll is running, guard on duty</string>
-    <string name="status_broken">NoScroll permission is switched off</string>
-    <string name="status_no_permission">WRITE_SECURE_SETTINGS not granted. Run from a computer:\nadb shell pm grant io.github.haku4130.noscrollguard android.permission.WRITE_SECURE_SETTINGS</string>
-    <string name="overlay_title">NoScroll cannot block anything</string>
-    <string name="overlay_text">Its "Display over other apps" permission was revoked, so it detects scrolling but cannot show the blocking screen. Tap to restore it.</string>
-    <string name="overlay_back_title">Overlay permission restored</string>
-    <string name="overlay_back_text">Reopen NoScroll so it picks the permission up — apps only check it when they start. Tap to open it.</string>
-    <string name="reopen_title">Open NoScroll to wake it up</string>
-    <string name="reopen_text">Its permission was restored, but it does nothing until opened, and the guard could not open it by itself. Tap to open NoScroll.</string>
-    <string name="guard_overlay_title">NoScroll Guard cannot wake NoScroll up</string>
-    <string name="guard_overlay_text">The guard\'s own "Display over other apps" permission was revoked. Repairs still work, but NoScroll stays inert after each one. Tap to restore it.</string>
+    <string name="status_ok">Projectivy accessibility is running, guard on duty</string>
+    <string name="status_broken">Projectivy accessibility is switched off or crashed</string>
+    <string name="status_no_permission">WRITE_SECURE_SETTINGS not granted. Run once via ADB:
+adb shell pm grant io.github.haku4130.noscrollguard android.permission.WRITE_SECURE_SETTINGS</string>
+    <string name="overlay_title">Projectivy overlay permission was revoked</string>
+    <string name="overlay_text">Projectivy may need its Display over other apps permission. Tap to restore it.</string>
+    <string name="overlay_back_title">Projectivy overlay permission restored</string>
+    <string name="overlay_back_text">Reopen Projectivy so it picks the permission up. Tap to open it.</string>
+    <string name="reopen_title">Open Projectivy to wake it up</string>
+    <string name="reopen_text">Its accessibility permission was restored, but Projectivy may need to be reopened. Tap to open Projectivy.</string>
+    <string name="guard_overlay_title">Projectivy Guard cannot wake Projectivy up</string>
+    <string name="guard_overlay_text">The guard's own Display over other apps permission was revoked. Accessibility repairs still work, but automatic reopening may fail. Tap to restore it.</string>
 </resources>
