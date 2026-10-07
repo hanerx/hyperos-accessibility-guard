@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [main]
+    branches: [main, projectivy-hyperos3]
   pull_request:
 
 jobs:
@@ -11,12 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
 
-      - uses: android-actions/setup-android@v3
+      # GitHub's Android runner already includes the SDK. Avoid setup-android here:
+      # its legacy "tools" package request currently fails because that package no longer exists.
+      - name: Make wrapper executable
+        run: chmod +x gradlew
 
       - name: Run unit tests
         run: ./gradlew test
