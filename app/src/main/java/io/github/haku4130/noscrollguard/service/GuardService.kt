@@ -161,8 +161,12 @@ class GuardService : Service() {
             log.append(System.currentTimeMillis(), "[$source] $message")
             GuardNotifications.notifyRepair(context, message)
 
-            // The settings are right again, but the app stays inert until reopened.
-            if (result is RepairResult.Success) GuardApp.restartFlag(context).markNeeded()
+            // Projectivy is the HOME app on the TV. As soon as accessibility is restored,
+            // bring it back immediately instead of waiting for the next unlock callback.
+            if (result is RepairResult.Success) {
+                GuardApp.restartFlag(context).markNeeded()
+                reopenGuardedAppIfNeeded(context)
+            }
             } finally {
                 settledAt.set(System.currentTimeMillis())
                 repairing.set(false)
