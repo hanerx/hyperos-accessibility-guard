@@ -1,12 +1,14 @@
 package io.github.haku4130.noscrollguard.ui
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import io.github.haku4130.noscrollguard.Constants
 import io.github.haku4130.noscrollguard.GuardApp
 import io.github.haku4130.noscrollguard.R
 import io.github.haku4130.noscrollguard.pause.DEFAULT_PAUSE_MS
@@ -20,6 +22,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         GuardService.start(this)
+
+        // Xiaomi TVManager starts this activity through start_3rd_app during TV wake.
+        // Repair synchronously, then hand the foreground directly to Projectivy HOME.
+        Thread {
+            GuardService.checkAndRepair(this, "startup mediator")
+            runOnUiThread { launchProjectivyHome() }
+        }.start()
 
         // Off by default since Android 13. Declaring it in the manifest is not enough, and
         // without it every warning the guard raises goes nowhere.
@@ -50,6 +59,31 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         render()
+    }
+
+    private fun launchProjectivyHome() {
+        try {
+            val launch = Intent(Intent.ACTION_MAIN).apply {
+                addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+                component = ComponentName(
+                    Constants.NOSCROLL_PACKAGE,
+                    "com.spocky.projengmenu.ui.home.MainActivity"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            GuardApp.eventLog(this).append(
+                System.currentTimeMillis(),
+                "[startup mediator] launching explicit Projectivy HOME"
+            )
+            startActivity(launch)
+            finish()
+        } catch (error: Throwable) {
+            GuardApp.eventLog(this).append(
+                System.currentTimeMillis(),
+                "[startup mediator] Projectivy HOME launch failed: " +
+                    error.javaClass.simpleName + ": " + error.message
+            )
+        }
     }
 
     private fun render() {
