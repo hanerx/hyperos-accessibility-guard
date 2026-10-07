@@ -61,10 +61,10 @@ class GuardService : Service() {
                 val unlocked = intent.action == Intent.ACTION_USER_PRESENT
                 thread {
                     checkAndRepair(context, if (unlocked) "unlock" else "screen on")
-                    // Reopening the app is what actually revives it, and an unlock is the
-                    // one moment when putting something on screen costs the user nothing:
-                    // they are already looking at it.
-                    if (unlocked) reopenGuardedAppIfNeeded(context)
+                    // Android TV may never emit USER_PRESENT after waking. SCREEN_ON is the
+                    // important event here: repair first, then immediately return to Projectivy.
+                    // The restart flag is deliberately kept while the panel is asleep.
+                    reopenGuardedAppIfNeeded(context)
                 }
             }
         }
@@ -161,12 +161,10 @@ class GuardService : Service() {
             log.append(System.currentTimeMillis(), "[$source] $message")
             GuardNotifications.notifyRepair(context, message)
 
-            // Projectivy is the HOME app on the TV. As soon as accessibility is restored,
-            // bring it back immediately instead of waiting for the next unlock callback.
-            if (result is RepairResult.Success) {
-                GuardApp.restartFlag(context).markNeeded()
-                reopenGuardedAppIfNeeded(context)
-            }
+            // Do not launch while the TV panel is still asleep. startActivity() can report
+            // success in that state even though nothing becomes visible, which would consume
+            // the restart flag. Keep it pending; SCREEN_ON will reopen Projectivy immediately.
+            if (result is RepairResult.Success) GuardApp.restartFlag(context).markNeeded()
             } finally {
                 settledAt.set(System.currentTimeMillis())
                 repairing.set(false)
